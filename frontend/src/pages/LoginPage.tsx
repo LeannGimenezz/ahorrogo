@@ -35,7 +35,14 @@ export function LoginPage() {
   };
   
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center px-6 relative">
+      <button
+        onClick={() => navigate(-1)}
+        aria-label="Volver"
+        className="absolute top-6 left-6 w-10 h-10 rounded-xl surface-card flex items-center justify-center text-primary active:scale-95 transition"
+      >
+        <span className="material-symbols-outlined">arrow_back</span>
+      </button>
       {/* Logo / Brand */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}

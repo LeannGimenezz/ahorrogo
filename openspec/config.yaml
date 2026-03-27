@@ -1,0 +1,27 @@
+schema: spec-driven
+
+context: |
+  Tech stack: React 19 + TypeScript + Vite + Tailwind v4 + Framer Motion.
+  Architecture: SPA mobile-first with route pages and shared layout components.
+  Testing: no automated tests configured in frontend package scripts.
+  Style: ESLint + TypeScript strict mode with utility-first styling.
+
+rules:
+  proposal:
+    - Include rollback plan for risky visual changes
+    - Identify affected UI modules and shared components
+  specs:
+    - Use Given/When/Then format for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Keep design aligned with existing mobile-first patterns
+    - Centralize reusable visual decisions in shared components
+  tasks:
+    - Group by foundation, implementation, verification
+    - Use hierarchical numbering and concrete file paths
+  apply:
+    - Follow existing React + Tailwind conventions
+  verify:
+    - Run npm run build in frontend and validate route-level UX manually
+  archive:
+    - Warn before destructive visual removals

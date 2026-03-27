@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { TopAppBar } from '../components/layout/TopAppBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { PenguinMascot } from '../components/penguin/PenguinMascot';
+import { CoinDetailsModal, type CoinOption } from '../components/ui/CoinDetailsModal';
 
 // Vault types with icons and descriptions
 const VAULT_TYPES = [
@@ -45,6 +46,43 @@ const VAULT_TYPES = [
   },
 ];
 
+
+const INVESTMENT_COINS: CoinOption[] = [
+  {
+    id: 'doc',
+    name: 'Dollar on Chain',
+    symbol: 'DOC',
+    type: 'Stablecoin',
+    apyRange: '3.8% - 4.8%',
+    risk: 'Bajo',
+    liquidity: 'Alta',
+    description: 'Stablecoin orientada a preservar valor en dólares y reducir volatilidad.',
+    why: 'Ideal para objetivos conservadores como garantía de alquiler o compras planificadas.',
+  },
+  {
+    id: 'usdrif',
+    name: 'USD RIF',
+    symbol: 'USDRIF',
+    type: 'Rendimiento',
+    apyRange: '4.6% - 5.6%',
+    risk: 'Medio',
+    liquidity: 'Media',
+    description: 'Activo estable del ecosistema Rootstock con oportunidades de rendimiento más alto.',
+    why: 'Conveniente para metas con horizonte medio/largo donde priorizás crecimiento.',
+  },
+  {
+    id: 'rbtc',
+    name: 'Rootstock BTC',
+    symbol: 'RBTC',
+    type: 'Bitcoin',
+    apyRange: '2.0% - 4.0%',
+    risk: 'Medio',
+    liquidity: 'Alta',
+    description: 'Exposición a Bitcoin en Rootstock, útil para perfiles con tolerancia a variación de precio.',
+    why: 'Útil si querés combinar ahorro con exposición al activo base del ecosistema.',
+  },
+];
+
 // Penguin messages for each step
 const STEP_MESSAGES = {
   1: '¿Qué querés ahorrar?',
@@ -61,8 +99,11 @@ export function CreateVaultPage() {
   const [unlockDate, setUnlockDate] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [selectedCoinId, setSelectedCoinId] = useState<CoinOption['id']>('doc');
+  const [showCoinDetails, setShowCoinDetails] = useState(false);
 
   const selectedVaultType = VAULT_TYPES.find(t => t.id === selectedType);
+  const selectedCoin = INVESTMENT_COINS.find((coin) => coin.id === selectedCoinId);
 
   // Calculate duration in months
   const getDuration = () => {
@@ -117,6 +158,13 @@ export function CreateVaultPage() {
   return (
     <div className="min-h-screen bg-background pb-24">
       <TopAppBar showBack title="Crear Vault" />
+
+      <CoinDetailsModal
+        isOpen={showCoinDetails}
+        onClose={() => setShowCoinDetails(false)}
+        coins={INVESTMENT_COINS}
+        selectedCoinId={selectedCoinId}
+      />
       
       <main className="pt-20 px-5 max-w-lg mx-auto">
         
@@ -355,6 +403,48 @@ export function CreateVaultPage() {
                 )}
               </div>
 
+
+              {/* Investment coin */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-on-surface-variant/60 text-[11px] font-bold uppercase tracking-widest">
+                    Moneda de inversión
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCoinDetails(true)}
+                    className="text-xs font-bold text-secondary hover:text-primary transition-colors"
+                  >
+                    Ver detalles
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {INVESTMENT_COINS.map((coin) => {
+                    const isActive = coin.id === selectedCoinId;
+                    return (
+                      <button
+                        key={coin.id}
+                        type="button"
+                        onClick={() => setSelectedCoinId(coin.id)}
+                        className={`rounded-xl px-3 py-2 border text-left transition-colors ${
+                          isActive
+                            ? 'bg-primary/15 border-primary/40 text-primary'
+                            : 'bg-surface-container-low border-outline-variant/15 text-on-surface-variant'
+                        }`}
+                      >
+                        <p className="text-sm font-bold">{coin.symbol}</p>
+                        <p className="text-[10px] opacity-80">{coin.apyRange}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selectedCoin && (
+                  <p className="text-xs text-on-surface-variant/70">{selectedCoin.description}</p>
+                )}
+              </div>
+
               {/* Navigation */}
               <div className="flex gap-3 pt-4">
                 <motion.button
@@ -459,6 +549,11 @@ export function CreateVaultPage() {
                       <div className="flex justify-between items-center">
                         <span className="text-on-surface-variant/60">Rendimiento anual</span>
                         <span className="text-primary font-bold">{selectedVaultType.yield}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <span className="text-on-surface-variant/60">Moneda seleccionada</span>
+                        <span className="text-secondary font-bold">{selectedCoin?.symbol ?? 'DOC'}</span>
                       </div>
                       <div className="border-t border-outline-variant/20 pt-3">
                         <div className="flex justify-between items-center">

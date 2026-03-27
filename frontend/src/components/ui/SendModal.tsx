@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAppStore } from '../../store/useAppStore';
+import { businessService } from '../../services';
 
 interface SendModalProps {
   isOpen: boolean;
@@ -11,20 +13,38 @@ export function SendModal({ isOpen, onClose }: SendModalProps) {
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [selectedVaultId, setSelectedVaultId] = useState('');
+  const vaults = useAppStore((state) => state.vaults);
   
   const walletBalance = 12500; // Mock
   
   const handleSend = async () => {
     setStep('processing');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setStep('success');
-    setTimeout(() => {
-      setStep('recipient');
-      setRecipient('');
-      setAmount('');
-      setNote('');
-      onClose();
-    }, 2000);
+    try {
+      const vaultId = selectedVaultId || vaults[0]?.id;
+      if (!vaultId) throw new Error('No hay vault disponible para enviar');
+
+      await businessService.sendFunds({
+        vault_id: vaultId,
+        recipient_alias: recipient,
+        amount: parseFloat(amount),
+        note,
+      });
+
+      setError(null);
+      setStep('success');
+      setTimeout(() => {
+        setStep('recipient');
+        setRecipient('');
+        setAmount('');
+        setNote('');
+        onClose();
+      }, 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo enviar');
+      setStep('amount');
+    }
   };
 
   // Mock recent recipients
@@ -175,6 +195,20 @@ export function SendModal({ isOpen, onClose }: SendModalProps) {
                       </div>
 
                       <div className="space-y-3">
+                        <label className="text-on-surface-variant/60 text-[11px] font-bold uppercase tracking-widest">Vault origen</label>
+                        <select
+                          value={selectedVaultId}
+                          onChange={(e) => setSelectedVaultId(e.target.value)}
+                          className="w-full bg-surface-container rounded-2xl px-4 py-3 text-white border border-outline-variant/10"
+                        >
+                          <option value="">Vault principal</option>
+                          {vaults.map((vault) => (
+                            <option key={vault.id} value={vault.id}>
+                              {vault.name}
+                            </option>
+                          ))}
+                        </select>
+
                         <label className="text-on-surface-variant/60 text-[11px] font-bold uppercase tracking-widest">Amount</label>
                         <div className="flex items-center bg-surface-container rounded-2xl px-5 py-4 border border-outline-variant/10">
                           <span className="text-primary font-bold text-2xl mr-2">$</span>
@@ -197,6 +231,12 @@ export function SendModal({ isOpen, onClose }: SendModalProps) {
                           </button>
                         </div>
                       </div>
+
+                      {error && (
+                        <div className="bg-error/10 border border-error/30 rounded-2xl p-3">
+                          <p className="text-error text-xs">{error}</p>
+                        </div>
+                      )}
 
                       {/* Note */}
                       <div className="space-y-2">

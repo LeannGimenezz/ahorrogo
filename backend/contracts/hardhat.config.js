@@ -41,6 +41,31 @@ module.exports = {
     }
   },
   
+  etherscan: {
+    apiKey: {
+      rsktestnet: "no-api-key-needed",
+      rskmainnet: "no-api-key-needed",
+    },
+    customChains: [
+      {
+        network: "rsktestnet",
+        chainId: 31,
+        urls: {
+          apiURL: "https://rootstock-testnet.blockscout.com/api",
+          browserURL: "https://rootstock-testnet.blockscout.com",
+        },
+      },
+      {
+        network: "rskmainnet",
+        chainId: 30,
+        urls: {
+          apiURL: "https://rootstock.blockscout.com/api",
+          browserURL: "https://rootstock.blockscout.com",
+        },
+      },
+    ],
+  },
+  
   paths: {
     sources: "./contracts",
     tests: "./test",
@@ -52,3 +77,4 @@ module.exports = {
     timeout: 120000
   }
 };
+

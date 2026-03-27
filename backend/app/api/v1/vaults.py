@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Header
 from supabase import AsyncClient
 import logging
 from app.api.deps import get_db, get_current_user
-from app.services import vault_service, user_service, xp_service, notification_service
+from app.services.vault_service import vault_service
+from app.services import user_service, xp_service, notification_service
 from app.services.vault_contract_service import get_vault_contract, VaultType
 from app.services.tropykus_service import tropykus_service
 from app.models.schemas import (
@@ -88,7 +89,7 @@ async def create_vault(
         )
     
     if vault_data.unlock_date:
-        min_date = datetime.utcnow()
+        min_date = datetime.now(vault_data.unlock_date.tzinfo) if vault_data.unlock_date.tzinfo else datetime.utcnow()
         if vault_data.unlock_date < min_date:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -108,7 +109,7 @@ async def create_vault(
         "current": 0,
     }
     
-    vault = await vault_service.create(db, vault_dict)
+    vault = await vault_service.create(db, vault_dict, current_user["address"])
     
     # Create on-chain if private key provided
     on_chain_id = None
@@ -134,8 +135,11 @@ async def create_vault(
             on_chain_id = result.vault_id
             
             # Update vault with on_chain_id
-            await vault_service.update(db, vault["id"], {"on_chain_id": on_chain_id})
-            vault["on_chain_id"] = on_chain_id
+            try:
+                await db.table("vaults").update({"on_chain_id": on_chain_id}).eq("id", vault["id"]).execute()
+                vault["on_chain_id"] = on_chain_id
+            except Exception:
+                pass
             
             logger.info(f"Vault created on-chain: vault_id={vault['id']}, on_chain_id={on_chain_id}, tx_hash={result.tx_hash}")
             
@@ -242,7 +246,7 @@ async def update_vault(
         update_dict["icon"] = update_data.icon
     
     if update_dict:
-        vault = await vault_service.update(db, vault_id, update_dict)
+        vault = await vault_service.update(db, vault_id, update_dict, current_user["address"])
     
     progress = vault["current"] / vault["target"] if vault["target"] > 0 else 0
     
@@ -289,7 +293,7 @@ async def delete_vault(
             detail="Cannot cancel vault with active lock",
         )
     
-    await vault_service.delete(db, vault_id)
+    await vault_service.delete(db, vault_id, current_user["address"])
 
 
 @router.post("/{vault_id}/deposit", response_model=DepositResponse)

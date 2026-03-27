@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../../store/useAppStore';
 import { PenguinMascot } from '../penguin/PenguinMascot';
+import { businessService } from '../../services';
 
-// XP奖励配置
+// XP reward config
 const XP_PER_DEPOSIT = {
-  base: 10,// 基础XP
-  perDollar: 0.5, // 每美元额外XP
+  base: 10,
+  perDollar: 0.5,
   bonusThresholds: [
     { threshold: 100, bonus: 5 },
     { threshold: 500, bonus: 25 },
@@ -17,13 +18,12 @@ const XP_PER_DEPOSIT = {
 function calculateXpReward(amount: number): number {
   let xp = XP_PER_DEPOSIT.base;
   xp += Math.floor(amount * XP_PER_DEPOSIT.perDollar);
-  // Add bonus for larger deposits
   for (const bonus of XP_PER_DEPOSIT.bonusThresholds) {
     if (amount >= bonus.threshold) {
       xp += bonus.bonus;
     }
   }
-  return Math.min(xp, 500);// Cap at 500 XP per deposit
+  return Math.min(xp, 500);
 }
 
 interface DepositModalProps {
@@ -33,30 +33,65 @@ interface DepositModalProps {
 
 export function DepositModal({ isOpen, onClose }: DepositModalProps) {
   const [amount, setAmount] = useState('');
-  const [step, setStep] = useState<'amount' | 'method' | 'processing' | 'success'>('amount');
-  const [selectedMethod, setSelectedMethod] = useState<'card' | 'bank' | 'crypto'>('card');
+  const [step, setStep] = useState<'amount' | 'vault' | 'method' | 'processing' | 'success'>('amount');
+  const [selectedMethod, setSelectedMethod] = useState<'beexo' | 'card' | 'bank' | 'crypto'>('beexo');
+  const [selectedVaultId, setSelectedVaultId] = useState<string | null>(null);
   const [xpGained, setXpGained] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   
-  const { addXp } = useAppStore();
+  const { addXp, vaults } = useAppStore();
+  const activeVaults = vaults.filter(v => v.status === 'active');
+  const walletBalance = 12500.00;
   
-  const walletBalance = 12500.00; // Mock
+  const selectedVault = activeVaults.find(v => v.id === selectedVaultId);
   
   const handleDeposit = async () => {
-    setStep('processing');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Calculate and add XP
     const depositAmount = parseFloat(amount);
-    const xp = calculateXpReward(depositAmount);
-    setXpGained(xp);
-    addXp(xp);
-    
-    setStep('success');
-    setTimeout(() => {
+    if (!depositAmount || depositAmount <= 0) {
+      setError('Ingresá un monto válido.');
+      return;
+    }
+
+    const fallbackVaultId = selectedVaultId ?? activeVaults[0]?.id;
+    if (!fallbackVaultId) {
+      setError('No hay bóvedas activas disponibles para depositar.');
+      return;
+    }
+
+    setStep('processing');
+    setError(null);
+
+    try {
+      const response = await businessService.depositToVault({
+        vault_id: fallbackVaultId,
+        amount: depositAmount,
+        payment_method: selectedMethod,
+      });
+
+      const xp = response.xp_earned ?? calculateXpReward(depositAmount);
+      setXpGained(xp);
+      addXp(xp);
+      setStep('success');
+
+      setTimeout(() => {
+        setStep('amount');
+        setAmount('');
+        setSelectedVaultId(null);
+        onClose();
+      }, 2500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo procesar el depósito.');
+      setStep('method');
+    }
+  };
+
+  const handleClose = () => {
+    if (step === 'amount' || step === 'vault') {
       setStep('amount');
       setAmount('');
+      setSelectedVaultId(null);
       onClose();
-    }, 2500);
+    }
   };
 
   return (
@@ -68,7 +103,7 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={step === 'amount' ? onClose : undefined}
+            onClick={handleClose}
             className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
           />
           
@@ -90,12 +125,14 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
                     </span>
                   </div>
                   <div>
-                    <h2 className="font-headline text-lg font-bold text-white">Deposit</h2>
-                    <p className="text-on-surface-variant/60 text-xs">Add funds via Beexo</p>
+                    <h2 className="font-headline text-lg font-bold text-white">Depositar</h2>
+                    <p className="text-on-surface-variant/60 text-xs">
+                      {step === 'vault' ? 'Elegí destino' : step === 'method' ? 'Medio de pago' : 'Agregar fondos vía Beexo'}
+                    </p>
                   </div>
                 </div>
                 <button
-                  onClick={onClose}
+                  onClick={handleClose}
                   className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors"
                 >
                   <span className="material-symbols-outlined text-on-surface-variant">close</span>
@@ -109,22 +146,25 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
                   animate={{ scale: 1 }}
                   className="text-center py-6"
                 >
-                  {/* Penguin Celebration */}
                   <div className="mb-4">
                     <PenguinMascot mood="celebrate" size="lg" showMessage message={`+${xpGained} XP!`} />
                   </div>
                   
-                  <p className="text-white font-bold text-xl mb-1">Deposit Successful!</p>
-                  <p className="text-primary font-semibold mb-3">
-                    +${parseFloat(amount).toLocaleString()} added to your vault
+                  <p className="text-white font-bold text-xl mb-1">¡Depósito exitoso!</p>
+                  <p className="text-primary font-semibold mb-1">
+                    +${parseFloat(amount).toLocaleString()} depositados
                   </p>
+                  {selectedVault && (
+                    <p className="text-on-surface-variant/60 text-sm">
+                      en {selectedVault.name}
+                    </p>
+                  )}
                   
-                  {/* XP Badge */}
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="inline-flex items-center gap-2 bg-primary/15 rounded-full px-4 py-2"
+                    className="inline-flex items-center gap-2 bg-primary/15 rounded-full px-4 py-2 mt-3"
                   >
                     <span className="material-symbols-outlined text-primary text-sm" style={{ fontVariationSettings: 'FILL 1' }}>star</span>
                     <span className="text-primary font-bold text-sm">+{xpGained} XP</span>
@@ -135,7 +175,7 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
                   <div className="w-16 h-16 mx-auto mb-4">
                     <span className="material-symbols-outlined text-primary text-5xl animate-spin">progress_activity</span>
                   </div>
-                  <p className="text-white font-semibold">Processing deposit...</p>
+                  <p className="text-white font-semibold">Procesando depósito...</p>
                 </div>
               ) : (
                 <>
@@ -143,13 +183,13 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
                   {step === 'amount' && (
                     <>
                       <div className="bg-surface-container rounded-2xl p-4">
-                        <p className="text-on-surface-variant/60 text-xs mb-1">Current Balance</p>
+                        <p className="text-on-surface-variant/60 text-xs mb-1">Balance actual</p>
                         <p className="text-white font-bold text-lg">${walletBalance.toLocaleString()}</p>
                       </div>
                       
                       <div className="space-y-3">
                         <label className="text-on-surface-variant/60 text-[11px] font-bold uppercase tracking-widest">
-                          Amount to deposit
+                          Monto a depositar
                         </label>
                         <div className="flex items-center bg-surface-container rounded-2xl px-5 py-4 border border-outline-variant/10 focus-within:border-primary/50 transition-colors">
                           <span className="text-primary font-bold text-2xl mr-2">$</span>
@@ -170,7 +210,7 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
                       </div>
 
                       <button
-                        onClick={() => setStep('method')}
+                        onClick={() => { setError(null); setStep('vault'); }}
                         disabled={!amount || parseFloat(amount) <= 0}
                         className={`
                           w-full py-4 rounded-2xl font-headline font-bold uppercase text-sm transition-all
@@ -180,23 +220,140 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
                           }
                         `}
                       >
-                        Continue
+                        Continuar
                       </button>
+                    </>
+                  )}
+
+                  {/* Vault Selection */}
+                  {step === 'vault' && (
+                    <>
+                      <div className="space-y-2">
+                        <label className="text-on-surface-variant/60 text-[11px] font-bold uppercase tracking-widest">
+                          Destino del depósito
+                        </label>
+                        
+                        {/* General Balance Option */}
+                        <button
+                          onClick={() => setSelectedVaultId(null)}
+                          className={`
+                            w-full flex items-center justify-between p-4 rounded-2xl border transition-all
+                            ${selectedVaultId === null
+                              ? 'bg-primary/10 border-primary/30'
+                              : 'bg-surface-container border-outline-variant/10 hover:border-outline-variant/30'
+                            }
+                          `}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedVaultId === null ? 'bg-primary' : 'bg-surface-container-high'}`}>
+                              <span className={`material-symbols-outlined ${selectedVaultId === null ? 'text-on-primary' : 'text-on-surface-variant'}`} style={{ fontVariationSettings: 'FILL 1' }}>
+                                account_balance_wallet
+                              </span>
+                            </div>
+                            <div className="text-left">
+                              <p className={`font-semibold ${selectedVaultId === null ? 'text-white' : 'text-on-surface-variant'}`}>Balance General</p>
+                              <p className="text-on-surface-variant/60 text-xs">Sin restricciones</p>
+                            </div>
+                          </div>
+                          {selectedVaultId === null && (
+                            <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: 'FILL 1' }}>check_circle</span>
+                          )}
+                        </button>
+
+                        {/* Vault Options */}
+                        {activeVaults.map((vault) => {
+                          const remaining = Math.max(0, vault.target - vault.current);
+                          const progress = vault.target > 0 ? Math.round((vault.current / vault.target) * 100) : 0;
+                          const isSelected = selectedVaultId === vault.id;
+
+                          return (
+                            <button
+                              key={vault.id}
+                              onClick={() => setSelectedVaultId(vault.id)}
+                              className={`
+                                w-full flex items-center justify-between p-4 rounded-2xl border transition-all
+                                ${isSelected
+                                  ? 'bg-primary/10 border-primary/30'
+                                  : 'bg-surface-container border-outline-variant/10 hover:border-outline-variant/30'
+                                }
+                              `}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSelected ? 'bg-primary' : 'bg-surface-container-high'}`}>
+                                  <span className={`material-symbols-outlined ${isSelected ? 'text-on-primary' : 'text-on-surface-variant'}`} style={{ fontVariationSettings: 'FILL 1' }}>
+                                    savings
+                                  </span>
+                                </div>
+                                <div className="text-left">
+                                  <p className={`font-semibold text-sm ${isSelected ? 'text-white' : 'text-on-surface-variant'}`}>{vault.name}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    <div className="w-16 h-1.5 bg-surface-variant/50 rounded-full overflow-hidden">
+                                      <div className="h-full bg-primary rounded-full" style={{ width: `${progress}%` }} />
+                                    </div>
+                                    <span className="text-on-surface-variant/50 text-[10px]">{progress}%</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                {remaining > 0 ? (
+                                  <p className="text-primary text-xs font-bold">Faltan ${remaining.toLocaleString()}</p>
+                                ) : (
+                                  <span className="bg-primary/15 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">Completo</span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {error && (
+                        <div className="bg-error/10 border border-error/30 rounded-2xl p-3">
+                          <p className="text-error text-xs">{error}</p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => { setError(null); setStep('amount'); }}
+                          className="flex-1 py-4 rounded-2xl font-headline font-bold uppercase text-sm text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors"
+                        >
+                          Volver
+                        </button>
+                        <button
+                          onClick={() => { setError(null); setStep('method'); }}
+                          className="flex-1 py-4 rounded-2xl font-headline font-bold uppercase text-sm bg-primary text-on-primary active:scale-[0.98] transition-transform"
+                        >
+                          Continuar
+                        </button>
+                      </div>
                     </>
                   )}
 
                   {/* Method Selection */}
                   {step === 'method' && (
                     <>
+                      {/* Selected Vault Summary */}
+                      <div className="bg-surface-container rounded-2xl p-3 flex items-center gap-3">
+                        <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: 'FILL 1' }}>
+                          {selectedVault ? 'savings' : 'account_balance_wallet'}
+                        </span>
+                        <div>
+                          <p className="text-on-surface-variant/60 text-[10px]">Depositando en</p>
+                          <p className="text-white font-semibold text-sm">{selectedVault?.name || 'Balance General'}</p>
+                        </div>
+                        <p className="text-primary font-bold ml-auto">${parseFloat(amount).toLocaleString()}</p>
+                      </div>
+
                       <div className="space-y-2">
                         <label className="text-on-surface-variant/60 text-[11px] font-bold uppercase tracking-widest">
-                          Payment Method
+                          Medio de pago
                         </label>
                         
                         {[
-                          { id: 'card', icon: 'credit_card', label: 'Credit/Debit Card', fee: '2.9%' },
-                          { id: 'bank', icon: 'account_balance', label: 'Bank Transfer', fee: 'Free' },
-                          { id: 'crypto', icon: 'currency_bitcoin', label: 'Crypto (RBTC/DOC)', fee: 'Free' },
+                          { id: 'beexo', icon: 'account_balance_wallet', label: 'Balance Beexo', fee: 'Gratis' },
+                          { id: 'card', icon: 'credit_card', label: 'Tarjeta de Crédito/Débito', fee: '2.9%' },
+                          { id: 'bank', icon: 'account_balance', label: 'Transferencia Bancaria', fee: 'Gratis' },
+                          { id: 'crypto', icon: 'currency_bitcoin', label: 'Crypto (RBTC/DOC)', fee: 'Gratis' },
                         ].map((method) => (
                           <button
                             key={method.id}
@@ -220,25 +377,31 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
                                 {method.label}
                               </span>
                             </div>
-                            <span className={`text-xs font-bold ${method.fee === 'Free' ? 'text-primary' : 'text-on-surface-variant/60'}`}>
+                            <span className={`text-xs font-bold ${method.fee === 'Gratis' ? 'text-primary' : 'text-on-surface-variant/60'}`}>
                               {method.fee}
                             </span>
                           </button>
                         ))}
                       </div>
 
+                      {error && (
+                        <div className="bg-error/10 border border-error/30 rounded-2xl p-3">
+                          <p className="text-error text-xs">{error}</p>
+                        </div>
+                      )}
+
                       <div className="flex gap-3">
                         <button
-                          onClick={() => setStep('amount')}
+                          onClick={() => { setError(null); setStep('vault'); }}
                           className="flex-1 py-4 rounded-2xl font-headline font-bold uppercase text-sm text-on-surface-variant bg-surface-container hover:bg-surface-container-high transition-colors"
                         >
-                          Back
+                          Volver
                         </button>
                         <button
                           onClick={handleDeposit}
                           className="flex-1 py-4 rounded-2xl font-headline font-bold uppercase text-sm bg-primary text-on-primary active:scale-[0.98] transition-transform"
                         >
-                          Deposit ${amount}
+                          Depositar ${amount}
                         </button>
                       </div>
                     </>

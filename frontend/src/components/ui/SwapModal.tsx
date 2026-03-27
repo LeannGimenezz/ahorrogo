@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { businessService } from '../../services';
 
 interface SwapModalProps {
   isOpen: boolean;
@@ -18,23 +19,51 @@ export function SwapModal({ isOpen, onClose }: SwapModalProps) {
   const [fromAmount, setFromAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState(0.000004);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
   
   const fromTokenData = TOKENS.find(t => t.id === fromToken)!;
   const toTokenData = TOKENS.find(t => t.id === toToken)!;
-  const exchangeRate = 0.000004; // Mock rate
-  
   const toAmount = fromAmount ? (parseFloat(fromAmount) * exchangeRate).toFixed(8) : '0';
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!fromAmount || parseFloat(fromAmount) <= 0) return;
+
+    businessService
+      .getSwapQuote({
+        from_token: fromToken.toUpperCase(),
+        to_token: toToken.toUpperCase(),
+        amount: parseFloat(fromAmount),
+      })
+      .then((quote) => {
+        setExchangeRate(quote.rate);
+        setQuoteError(null);
+      })
+      .catch((err) => {
+        setQuoteError(err instanceof Error ? err.message : 'No se pudo cotizar el swap');
+      });
+  }, [isOpen, fromToken, toToken, fromAmount]);
   
   const handleSwap = async () => {
     setIsProcessing(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsProcessing(false);
-    setIsSuccess(true);
-    setTimeout(() => {
-      setIsSuccess(false);
-      setFromAmount('');
-      onClose();
-    }, 2000);
+    try {
+      await businessService.executeSwap({
+        from_token: fromToken.toUpperCase(),
+        to_token: toToken.toUpperCase(),
+        amount: parseFloat(fromAmount),
+      });
+      setIsProcessing(false);
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        setFromAmount('');
+        onClose();
+      }, 2000);
+    } catch (err) {
+      setIsProcessing(false);
+      setQuoteError(err instanceof Error ? err.message : 'No se pudo ejecutar el swap');
+    }
   };
 
   const handleFlip = () => {
@@ -180,6 +209,12 @@ export function SwapModal({ isOpen, onClose }: SwapModalProps) {
                       <span className="text-primary font-bold">~0.1%</span>
                     </div>
                   </div>
+
+                  {quoteError && (
+                    <div className="bg-error/10 border border-error/30 rounded-2xl p-3">
+                      <p className="text-error text-xs">{quoteError}</p>
+                    </div>
+                  )}
 
                   {/* Swap Button */}
                   <button

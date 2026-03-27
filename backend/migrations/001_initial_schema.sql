@@ -142,15 +142,18 @@ begin
 end;
 $$ language plpgsql;
 
-create trigger if not exists set_updated_at
+drop trigger if exists set_updated_at on public.users;
+create trigger set_updated_at
     before update on public.users
     for each row execute function public.handle_updated_at();
 
-create trigger if not exists set_updated_at
+drop trigger if exists set_updated_at on public.vaults;
+create trigger set_updated_at
     before update on public.vaults
     for each row execute function public.handle_updated_at();
 
-create trigger if not exists set_penguin_updated_at
+drop trigger if exists set_penguin_updated_at on public.penguin_states;
+create trigger set_penguin_updated_at
     before update on public.penguin_states
     for each row execute function public.handle_updated_at();
 

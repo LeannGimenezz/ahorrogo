@@ -212,6 +212,20 @@ class VaultService:
             vaults.append(vault)
         
         return vaults
+
+    async def get_by_name(
+        self,
+        db: AsyncClient,
+        user_id: str,
+        name: str
+    ) -> Optional[Dict[str, Any]]:
+        """Obtiene un vault por nombre dentro de un usuario."""
+        result = await db.table("vaults").select("*").eq("user_id", user_id).eq("name", name).limit(1).execute()
+        if result.data:
+            vault = result.data[0]
+            vault["progress"] = calculate_progress(vault["current"], vault["target"])
+            return vault
+        return None
     
     async def get_by_address(
         self,
@@ -231,7 +245,7 @@ class VaultService:
         self,
         db: AsyncClient,
         vault_data: Dict[str, Any],
-        user_address: str
+        user_address: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Crea un nuevo vault.
@@ -244,12 +258,16 @@ class VaultService:
         Returns:
             Vault creado con ID
         """
-        # Obtener user_id desde la dirección
-        user_result = await db.table("users").select("id").eq("address", user_address).execute()
-        if not user_result.data:
-            raise VaultError("Usuario no encontrado")
-        
-        user_id = user_result.data[0]["id"]
+        # Resolver user_id (prioriza user_address, fallback a user_id en payload)
+        if user_address:
+            user_result = await db.table("users").select("id").eq("address", user_address).execute()
+            if not user_result.data:
+                raise VaultError("Usuario no encontrado")
+            user_id = user_result.data[0]["id"]
+        else:
+            user_id = vault_data.get("user_id")
+            if not user_id:
+                raise VaultError("user_id requerido cuando no se provee user_address")
         
         # Verificar que no exista un vault con el mismo nombre
         existing = await db.table("vaults").select("id")\
@@ -287,7 +305,7 @@ class VaultService:
         db: AsyncClient,
         vault_id: str,
         data: Dict[str, Any],
-        user_address: str
+        user_address: Optional[str] = None
     ) -> Dict[str, Any]:
         """Actualiza un vault (solo nombre e icono)."""
         # Verificar propiedad
@@ -295,7 +313,7 @@ class VaultService:
         if not vault:
             raise VaultNotFoundError("Vault no encontrado")
         
-        if not await self._verify_ownership(db, vault, user_address):
+        if user_address and not await self._verify_ownership(db, vault, user_address):
             raise VaultError("No tienes permisos sobre este vault")
         
         allowed_fields = ["name", "icon"]
@@ -316,14 +334,14 @@ class VaultService:
         self,
         db: AsyncClient,
         vault_id: str,
-        user_address: str
+        user_address: Optional[str] = None
     ) -> bool:
         """Elimina un vault (solo si está cancelado o no tiene lock)."""
         vault = await self.get_by_id(db, vault_id)
         if not vault:
             raise VaultNotFoundError("Vault no encontrado")
         
-        if not await self._verify_ownership(db, vault, user_address):
+        if user_address and not await self._verify_ownership(db, vault, user_address):
             raise VaultError("No tienes permisos sobre este vault")
         
         if vault["locked"] and vault["status"] == VAULT_STATUS_ACTIVE:
@@ -331,6 +349,26 @@ class VaultService:
         
         await db.table("vaults").delete().eq("id", vault_id).execute()
         return True
+
+    async def update_current(
+        self,
+        db: AsyncClient,
+        vault_id: str,
+        current: float,
+        status: str
+    ) -> Dict[str, Any]:
+        """Actualiza balance actual y estado del vault."""
+        payload = {
+            "current": current,
+            "status": status,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+        result = await db.table("vaults").update(payload).eq("id", vault_id).execute()
+        if not result.data:
+            raise VaultNotFoundError("Vault no encontrado")
+        updated = result.data[0]
+        updated["progress"] = calculate_progress(updated["current"], updated["target"])
+        return updated
     
     # ─── Depósitos con Blockchain ───────────────────────────────────────
     

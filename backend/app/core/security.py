@@ -1,4 +1,5 @@
 from web3 import Web3
+from eth_account.messages import encode_defunct
 from app.config import get_settings
 
 settings = get_settings()
@@ -10,8 +11,9 @@ w3 = Web3(Web3.HTTPProvider(settings.rsk_rpc_url))
 
 def verify_beexo_signature(address: str, signature: str, message: str = AUTH_MESSAGE) -> bool:
     try:
+        signable_message = encode_defunct(text=message)
         recovered = w3.eth.account.recover_message(
-            text=message,
+            signable_message,
             signature=signature
         )
         return recovered.lower() == address.lower()

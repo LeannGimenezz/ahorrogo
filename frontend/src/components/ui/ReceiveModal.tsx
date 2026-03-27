@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { businessService } from '../../services';
 
 interface ReceiveModalProps {
   isOpen: boolean;
@@ -8,10 +9,25 @@ interface ReceiveModalProps {
 
 export function ReceiveModal({ isOpen, onClose }: ReceiveModalProps) {
   const [copied, setCopied] = useState(false);
-  
-  // Mock address - in production this would come from Beexo SDK
-  const fullAddress = '0x7a3B8cD5E9F1A2B3C4D5E6F7A8B9C0D1E2F3G4H5';
-  const beexoAlias = 'tunombre.bexo';
+  const [fullAddress, setFullAddress] = useState('0x...');
+  const [beexoAlias, setBeexoAlias] = useState('tunombre.bexo');
+  const [cvu, setCvu] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    businessService
+      .getReceiveInfo()
+      .then((info) => {
+        setFullAddress(info.wallet_address);
+        setBeexoAlias(info.beexo_alias);
+        setCvu(info.cvu ?? null);
+        setError(null);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'No se pudo cargar información de recepción');
+      });
+  }, [isOpen]);
   
   const handleCopy = () => {
     navigator.clipboard.writeText(fullAddress);
@@ -107,6 +123,21 @@ export function ReceiveModal({ isOpen, onClose }: ReceiveModalProps) {
                   </button>
                 </div>
               </div>
+
+              {cvu && (
+                <div className="space-y-2">
+                  <p className="text-on-surface-variant/60 text-[10px] font-bold uppercase tracking-widest">CVU</p>
+                  <div className="bg-surface-container rounded-2xl px-4 py-3">
+                    <p className="text-white font-mono text-sm">{cvu}</p>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="bg-error/10 border border-error/30 rounded-2xl p-3">
+                  <p className="text-error text-xs">{error}</p>
+                </div>
+              )}
 
               {/* Networks */}
               <div className="bg-surface-container rounded-2xl p-4">

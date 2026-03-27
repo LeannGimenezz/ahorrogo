@@ -1,38 +1,22 @@
-// useAuth hook - Authentication state management with demo mode
+// useAuth hook - Authentication state management with Beexo + demo fallback
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/useAppStore';
-import type { UserResponse } from '../types/api';
+import { authService, isBeexoAvailable } from '../services/auth';
 import type { User } from '../types';
 
-// Mock user for demo mode
-const MOCK_USER_RESPONSE: UserResponse = {
+// Demo user for fallback when Beexo is not available
+const DEMO_USER: User = {
   id: 'demo-user-1',
   address: '0xF5fae80a7165E8e998814aBc0F81027A33f94134',
   alias: 'demo.ahorrogo',
   xp: 350,
   level: 3,
   streak: 5,
-  last_deposit_at: new Date().toISOString(),
-  created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+  lastDepositAt: new Date().toISOString(),
+  createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
 };
-
-// Convert API response to internal User type
-function toUser(response: UserResponse): User {
-  return {
-    id: response.id,
-    address: response.address,
-    alias: response.alias,
-    xp: response.xp,
-    level: response.level,
-    streak: response.streak,
-    lastDepositAt: response.last_deposit_at ?? undefined,
-    last_deposit_at: response.last_deposit_at ?? undefined,
-    createdAt: response.created_at,
-    created_at: response.created_at,
-  };
-}
 
 export interface UseAuthReturn {
   // State
@@ -40,6 +24,7 @@ export interface UseAuthReturn {
   isLoading: boolean;
   error: string | null;
   user: User | null;
+  isBeexo: boolean;
   
   // Actions
   login: () => Promise<void>;
@@ -52,29 +37,48 @@ export interface UseAuthReturn {
 
 export function useAuth(): UseAuthReturn {
   const navigate = useNavigate();
-  const { user, setUser } = useAppStore();
+  const { user, setUser, initMockData } = useAppStore();
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const beexoAvailable = isBeexoAvailable();
   
-  // Auto-login with demo mode
+  // Auto-login: if Beexo is available, prompt connection. Otherwise, demo mode.
   useEffect(() => {
     if (!user) {
-      // Set mock user on first load
-      setUser(toUser(MOCK_USER_RESPONSE));
+      if (!beexoAvailable) {
+        // No Beexo → auto-login with demo user
+        setUser(DEMO_USER);
+        initMockData();
+      }
     }
-  }, [user, setUser]);
+  }, [user, setUser, beexoAvailable, initMockData]);
   
-  // Login (demo mode - always succeeds)
+  // Login — tries Beexo first, falls back to demo
   const login = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
     try {
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      setUser(toUser(MOCK_USER_RESPONSE));
+      if (beexoAvailable) {
+        // Real Beexo flow: connect → sign → verify → JWT
+        const { user: apiUser } = await authService.login();
+        setUser({
+          id: apiUser.id,
+          address: apiUser.address,
+          alias: apiUser.alias,
+          xp: apiUser.xp,
+          level: apiUser.level,
+          streak: apiUser.streak,
+          lastDepositAt: apiUser.last_deposit_at ?? undefined,
+          createdAt: apiUser.created_at,
+        });
+      } else {
+        // Demo fallback
+        await new Promise(resolve => setTimeout(resolve, 400));
+        setUser(DEMO_USER);
+        initMockData();
+      }
       navigate('/');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';
@@ -83,32 +87,34 @@ export function useAuth(): UseAuthReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [setUser, navigate]);
+  }, [setUser, navigate, beexoAvailable, initMockData]);
   
   // Logout
   const logout = useCallback(() => {
+    authService.logout();
     setUser(null);
     navigate('/');
   }, [setUser, navigate]);
   
-  // Refresh user data (demo mode - returns mock)
+  // Refresh user data
   const refreshUser = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setUser(toUser(MOCK_USER_RESPONSE));
+      if (beexoAvailable && authService.isAuthenticated()) {
+        // TODO: call userService.getCurrentUser() when backend is live
+      }
+      // For now, keep current user
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to refresh user';
       setError(message);
-      console.error('Refresh user error:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [setUser]);
+  }, [beexoAvailable]);
   
-  // Get balance (demo mode - returns mock)
+  // Get balance (demo returns mock, real calls backend)
   const getBalance = useCallback(async () => {
     try {
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -125,21 +131,23 @@ export function useAuth(): UseAuthReturn {
     }
   }, []);
   
-  // Set private key (demo mode - no-op)
-  const setPrivateKey = useCallback((_key: string) => {
-    console.log('Demo mode: private key ignored');
-  }, []);
+  // Private key management
+  const setPrivateKey = useCallback((key: string) => {
+    if (beexoAvailable) {
+      authService.setPrivateKey(key);
+    }
+  }, [beexoAvailable]);
   
-  // Clear private key (demo mode - no-op)
   const clearPrivateKey = useCallback(() => {
-    console.log('Demo mode: private key cleared');
+    authService.clearPrivateKey();
   }, []);
   
   return {
-    isAuthenticated: true, // Always authenticated in demo mode
+    isAuthenticated: !!user,
     isLoading,
     error,
-    user: user || toUser(MOCK_USER_RESPONSE),
+    user: user || DEMO_USER,
+    isBeexo: beexoAvailable,
     login,
     logout,
     refreshUser,

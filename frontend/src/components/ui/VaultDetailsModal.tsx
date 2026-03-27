@@ -1,6 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { RentalGuaranteePanel } from '../vaults/RentalGuaranteePanel';
+import { ProtectedPurchasePanel } from '../vaults/ProtectedPurchasePanel';
+import { FinanceManagementPanel } from '../vaults/FinanceManagementPanel';
+import type { VaultUseCase, ReleaseScheduleItem } from '../../types';
 
-export type VaultUseCaseId = 'compra-p2p' | 'garantia-alquiler' | 'metas-candado';
+export type VaultUseCaseId = VaultUseCase;
 
 export interface VaultDetailData {
   id: string;
@@ -12,6 +16,14 @@ export interface VaultDetailData {
   investedCoin: string;
   apy: string;
   useCase: VaultUseCaseId;
+  // Optional fields for panels
+  ownerAddress?: string;
+  guaranteeMonths?: number;
+  beneficiary?: string;
+  contractAddress?: string;
+  sellerAddress?: string;
+  releaseCondition?: string;
+  releaseSchedule?: ReleaseScheduleItem[];
 }
 
 interface VaultDetailsModalProps {
@@ -39,12 +51,76 @@ const useCaseContent: Record<VaultUseCaseId, { title: string; pain: string; flow
     flow: 'El usuario configura un time-lock en su meta. El contrato bloquea retiros hasta la fecha pactada mientras los fondos siguen rindiendo en DeFi.',
     value: 'Disciplina financiera programable + interés compuesto protegido.',
   },
+  'finanzas-personales': {
+    title: 'Gestión de Finanzas Personales (Liberaciones programadas)',
+    pain: 'Sin estructura, los ahorros se gastan impulsivamente y no se respetan los planes financieros.',
+    flow: 'El usuario configura porcentajes de liberación por tramos. El smart contract libera los fondos en las fechas pactadas automáticamente.',
+    value: 'Disciplina financiera con liberaciones controladas + rendimiento DeFi.',
+  },
+  'venta-protegida': {
+    title: 'Venta Protegida con Escrow (Pago seguro entre partes)',
+    pain: 'En ventas P2P no hay garantía de que el comprador pague o el vendedor entregue.',
+    flow: 'El comprador bloquea el pago en el vault. Cuando ambas partes confirman la entrega, el smart contract libera los fondos al vendedor.',
+    value: 'Escrow descentralizado con liberación condicional.',
+  },
 };
 
 export function VaultDetailsModal({ isOpen, onClose, vault }: VaultDetailsModalProps) {
   if (!vault) return null;
 
   const useCase = useCaseContent[vault.useCase];
+
+  const renderUseCasePanel = () => {
+    switch (vault.useCase) {
+      case 'garantia-alquiler':
+        return (
+          <RentalGuaranteePanel
+            vault={{
+              id: vault.id,
+              name: vault.name,
+              current: vault.current,
+              target: vault.target,
+              ownerAddress: vault.ownerAddress,
+              guaranteeMonths: vault.guaranteeMonths,
+              beneficiary: vault.beneficiary,
+              contractAddress: vault.contractAddress,
+            }}
+          />
+        );
+      case 'compra-p2p':
+      case 'venta-protegida':
+        return (
+          <ProtectedPurchasePanel
+            vault={{
+              id: vault.id,
+              name: vault.name,
+              current: vault.current,
+              target: vault.target,
+              contractAddress: vault.contractAddress,
+              sellerAddress: vault.sellerAddress,
+              releaseCondition: vault.releaseCondition,
+            }}
+          />
+        );
+      case 'finanzas-personales':
+        return (
+          <FinanceManagementPanel
+            vault={{
+              id: vault.id,
+              name: vault.name,
+              current: vault.current,
+              target: vault.target,
+              releaseSchedule: vault.releaseSchedule,
+            }}
+          />
+        );
+      case 'metas-candado':
+      default:
+        return null; // Default info view handled below
+    }
+  };
+
+  const panel = renderUseCasePanel();
 
   return (
     <AnimatePresence>
@@ -76,6 +152,8 @@ export function VaultDetailsModal({ isOpen, onClose, vault }: VaultDetailsModalP
               </header>
 
               <main className="p-4 h-[calc(100%-88px)] overflow-y-auto space-y-4">
+
+                {/* Financial Summary */}
                 <section className="rounded-2xl bg-gradient-to-br from-surface-container-high to-surface-container p-4 border border-outline-variant/20">
                   <div className="flex justify-between items-start mb-2">
                     <div>
@@ -110,30 +188,40 @@ export function VaultDetailsModal({ isOpen, onClose, vault }: VaultDetailsModalP
                   </div>
                 </section>
 
-                <section className="rounded-2xl bg-surface-container p-4 border border-outline-variant/20 space-y-3">
-                  <h4 className="text-white font-bold">Caso de uso activo</h4>
-                  <div className="space-y-2">
-                    <p className="text-primary text-sm font-semibold">{useCase.title}</p>
-                    <div className="rounded-xl bg-surface-container-low p-3 border border-outline-variant/20">
-                      <p className="text-on-surface-variant/60 text-[10px] uppercase font-bold mb-1">El dolor</p>
-                      <p className="text-white text-sm">{useCase.pain}</p>
-                    </div>
-                    <div className="rounded-xl bg-surface-container-low p-3 border border-outline-variant/20">
-                      <p className="text-on-surface-variant/60 text-[10px] uppercase font-bold mb-1">Flujo en AhorroGO</p>
-                      <p className="text-white text-sm">{useCase.flow}</p>
-                    </div>
-                    <div className="rounded-xl bg-primary/10 p-3 border border-primary/30">
-                      <p className="text-primary text-[10px] uppercase font-bold mb-1">Valor generado</p>
-                      <p className="text-white text-sm">{useCase.value}</p>
-                    </div>
-                  </div>
-                </section>
+                {/* Use-Case-Specific Panel */}
+                {panel ? (
+                  <section className="rounded-2xl bg-surface-container p-4 border border-outline-variant/20">
+                    {panel}
+                  </section>
+                ) : (
+                  <>
+                    {/* Default: Use case info */}
+                    <section className="rounded-2xl bg-surface-container p-4 border border-outline-variant/20 space-y-3">
+                      <h4 className="text-white font-bold">Caso de uso activo</h4>
+                      <div className="space-y-2">
+                        <p className="text-primary text-sm font-semibold">{useCase.title}</p>
+                        <div className="rounded-xl bg-surface-container-low p-3 border border-outline-variant/20">
+                          <p className="text-on-surface-variant/60 text-[10px] uppercase font-bold mb-1">El dolor</p>
+                          <p className="text-white text-sm">{useCase.pain}</p>
+                        </div>
+                        <div className="rounded-xl bg-surface-container-low p-3 border border-outline-variant/20">
+                          <p className="text-on-surface-variant/60 text-[10px] uppercase font-bold mb-1">Flujo en AhorroGO</p>
+                          <p className="text-white text-sm">{useCase.flow}</p>
+                        </div>
+                        <div className="rounded-xl bg-primary/10 p-3 border border-primary/30">
+                          <p className="text-primary text-[10px] uppercase font-bold mb-1">Valor generado</p>
+                          <p className="text-white text-sm">{useCase.value}</p>
+                        </div>
+                      </div>
+                    </section>
 
-                <section className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <button className="rounded-xl bg-surface-container-low py-3 text-sm text-white font-semibold border border-outline-variant/20">Transferir por QR</button>
-                  <button className="rounded-xl bg-surface-container-low py-3 text-sm text-white font-semibold border border-outline-variant/20">Ver prueba</button>
-                  <button className="rounded-xl bg-primary py-3 text-sm text-on-primary font-bold">Configurar candado</button>
-                </section>
+                    <section className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <button className="rounded-xl bg-surface-container-low py-3 text-sm text-white font-semibold border border-outline-variant/20">Transferir por QR</button>
+                      <button className="rounded-xl bg-surface-container-low py-3 text-sm text-white font-semibold border border-outline-variant/20">Ver prueba</button>
+                      <button className="rounded-xl bg-primary py-3 text-sm text-on-primary font-bold">Configurar candado</button>
+                    </section>
+                  </>
+                )}
               </main>
             </div>
           </motion.div>

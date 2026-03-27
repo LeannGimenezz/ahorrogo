@@ -37,6 +37,13 @@ class TransferStatus(str, Enum):
     EXPIRED = "expired"
 
 
+class PaymentMethod(str, Enum):
+    BEEXO = "beexo"
+    BANK = "bank"
+    CARD = "card"
+    CRYPTO = "crypto"
+
+
 XP_PER_LEVEL = [0, 100, 300, 600, 1000]
 
 ACCESSORIES_BY_LEVEL = {
@@ -329,6 +336,126 @@ class UserBalanceResponse(BaseModel):
     locked: float
     yield_this_month: float
     yield_percentage: float  # Current APY from Tropykus
+
+
+# === BUSINESS FLOWS (MVP+) ===
+class DepositToVaultRequest(BaseModel):
+    vault_id: str
+    amount: float = Field(..., gt=0)
+    payment_method: PaymentMethod = PaymentMethod.BEEXO
+    tx_hash: Optional[str] = None
+
+
+class ReceiveInfoResponse(BaseModel):
+    beexo_alias: str
+    wallet_address: str
+    cvu: Optional[str] = None
+    qr_payload: str
+
+
+class SwapQuoteRequest(BaseModel):
+    from_token: str
+    to_token: str
+    amount: float = Field(..., gt=0)
+
+
+class SwapQuoteResponse(BaseModel):
+    from_token: str
+    to_token: str
+    amount: float
+    rate: float
+    estimated_received: float
+    slippage: float
+
+
+class SwapExecuteRequest(SwapQuoteRequest):
+    accept_slippage: bool = True
+
+
+class SwapExecuteResponse(BaseModel):
+    success: bool
+    swap_id: str
+    tx_hash: Optional[str] = None
+    status: str
+    estimated_received: float
+
+
+class SendFundsRequest(BaseModel):
+    vault_id: str
+    recipient_alias: Optional[str] = None
+    recipient_address: Optional[str] = None
+    amount: float = Field(..., gt=0)
+    note: Optional[str] = None
+
+
+class SendFundsResponse(BaseModel):
+    success: bool
+    transfer_id: str
+    status: str
+    amount: float
+    recipient: str
+
+
+class P2PProtectedCreateRequest(BaseModel):
+    vault_id: str
+    seller_address: str
+    amount: float = Field(..., gt=0)
+    item_description: str
+    release_date: Optional[datetime] = None
+
+
+class RentalGuaranteeCreateRequest(BaseModel):
+    vault_id: str
+    owner_address: str
+    amount: float = Field(..., gt=0)
+    guarantee_months: int = Field(..., ge=1, le=36)
+
+
+class TimeLockGoalCreateRequest(BaseModel):
+    name: str = Field(..., max_length=100)
+    icon: str = Field(default="🎯")
+    target: float = Field(..., gt=0)
+    unlock_date: datetime
+    initial_deposit: float = Field(default=0, ge=0)
+
+
+class ContractSummaryResponse(BaseModel):
+    contract_id: str
+    contract_type: str
+    status: str
+    on_chain_vault_id: Optional[int] = None
+    summary: dict
+
+
+class ContractActionResponse(BaseModel):
+    success: bool
+    contract_id: str
+    status: str
+    tx_hash: Optional[str] = None
+
+
+class ReleaseRuleInput(BaseModel):
+    label: str
+    percentage: float = Field(..., gt=0, le=100)
+    release_day: Optional[int] = Field(default=None, ge=1, le=31)
+    target_address: Optional[str] = None
+
+
+class ScheduleReleaseRequest(BaseModel):
+    rules: List[ReleaseRuleInput]
+
+
+class ScheduleReleaseResponse(BaseModel):
+    success: bool
+    contract_id: str
+    total_percentage: float
+    rules_count: int
+
+
+class MotivationResponse(BaseModel):
+    message: str
+    days_saved: int
+    new_eta_days: Optional[int] = None
 
 
 VaultWithActivities.model_rebuild()

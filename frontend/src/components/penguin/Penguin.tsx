@@ -14,6 +14,11 @@ const moodMap: LegacyToNewMoodMap = {
   happy: 'happy',
   celebrating: 'celebrate',
   waiting: 'sleep',
+  encourage: 'happy',
+  thinking: 'idle',
+  guide: 'idle',
+  celebrate: 'celebrate',
+  wave: 'happy',
 };
 
 export function Penguin({ mood, size = 'md', className = '' }: PenguinProps) {

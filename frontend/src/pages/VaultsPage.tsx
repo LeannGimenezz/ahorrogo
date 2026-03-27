@@ -5,67 +5,52 @@ import { TopAppBar } from '../components/layout/TopAppBar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { PenguinMascot } from '../components/penguin/PenguinMascot';
 import { VaultDetailsModal, type VaultDetailData } from '../components/ui/VaultDetailsModal';
+import { useAppStore } from '../store/useAppStore';
+import { generateMotivation } from '../types';
+
+const USE_CASE_LABELS: Record<string, string> = {
+  'compra-p2p': 'Compra Protegida P2P',
+  'garantia-alquiler': 'Garantía de Alquiler Activa',
+  'metas-candado': 'Meta con Candado',
+  'finanzas-personales': 'Finanzas Personales',
+  'venta-protegida': 'Venta Protegida',
+};
 
 export function VaultsPage() {
   const navigate = useNavigate();
+  const { vaults, penguin } = useAppStore();
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('active');
   const [selectedVault, setSelectedVault] = useState<VaultDetailData | null>(null);
 
-  const mockVaults: VaultDetailData[] = [
-    {
-      id: '1',
-      name: 'Compra Consola PS5',
-      current: 1850,
-      target: 2200,
-      percentage: 84,
-      typeLabel: 'Compra Protegida P2P',
-      investedCoin: 'DOC',
-      apy: '4.8%',
-      useCase: 'compra-p2p',
-    },
-    {
-      id: '2',
-      name: 'Garantía Depto Palermo',
-      current: 5000,
-      target: 5000,
-      percentage: 100,
-      typeLabel: 'Garantía de Alquiler Activa',
-      investedCoin: 'DOC',
-      apy: '3.7%',
-      useCase: 'garantia-alquiler',
-    },
-    {
-      id: '3',
-      name: 'Meta MacBook Pro 2026',
-      current: 2100,
-      target: 4200,
-      percentage: 50,
-      typeLabel: 'Meta con Candado',
-      investedCoin: 'USDRIF',
-      apy: '5.2%',
-      useCase: 'metas-candado',
-    },
-    {
-      id: '4',
-      name: 'Fondo Emergencia',
-      current: 3200,
-      target: 4000,
-      percentage: 80,
-      typeLabel: 'Meta con Candado',
-      investedCoin: 'DOC',
-      apy: '4.6%',
-      useCase: 'metas-candado',
-    },
-  ];
+  // Map store vaults to VaultDetailData
+  const vaultDetails: VaultDetailData[] = vaults.map(v => ({
+    id: v.id,
+    name: v.name,
+    current: v.current,
+    target: v.target,
+    percentage: v.target > 0 ? Math.round((v.current / v.target) * 100) : 0,
+    typeLabel: USE_CASE_LABELS[v.useCase || 'metas-candado'] || 'Meta con Candado',
+    investedCoin: v.investedCoin || 'DOC',
+    apy: v.apy || '4.5%',
+    useCase: v.useCase || 'metas-candado',
+    ownerAddress: v.ownerAddress,
+    guaranteeMonths: v.guaranteeMonths,
+    beneficiary: v.beneficiary,
+    contractAddress: v.contractAddress,
+    sellerAddress: v.sellerAddress,
+    releaseCondition: v.releaseCondition,
+    releaseSchedule: v.releaseSchedule,
+  }));
 
-  const filteredVaults = mockVaults.filter((vault) => {
+  const filteredVaults = vaultDetails.filter((vault) => {
     if (filter === 'completed') return vault.percentage >= 100;
     if (filter === 'active') return vault.percentage < 100;
     return true;
   });
 
-  const totalLocked = mockVaults.reduce((sum, v) => sum + v.current, 0);
-  const activeCount = mockVaults.filter((v) => v.percentage < 100).length;
+  const totalLocked = vaultDetails.reduce((sum, v) => sum + v.current, 0);
+  const activeCount = vaultDetails.filter((v) => v.percentage < 100).length;
+  const motivation = generateMotivation(vaults, penguin.streak);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -78,6 +63,7 @@ export function VaultsPage() {
       />
 
       <main className="pt-20 px-5 max-w-lg mx-auto space-y-6">
+        {/* Summary Card */}
         <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -101,15 +87,36 @@ export function VaultsPage() {
             </div>
 
             <div className="absolute -right-2 -bottom-2 opacity-90">
-              <PenguinMascot mood={activeCount > 0 ? 'happy' : 'guide'} size="md" message={activeCount > 0 ? 'Abrí un vault para ver detalles' : 'Crea tu vault'} />
+              <PenguinMascot mood={activeCount > 0 ? 'happy' : 'guide'} size="md" />
             </div>
           </div>
         </motion.section>
 
-        <motion.div
+        {/* AI Motivation Card */}
+        <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
+        >
+          <div className="bg-gradient-to-r from-tertiary/10 to-primary/10 rounded-2xl p-4 border border-tertiary/20 flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <PenguinMascot mood="encourage" size="sm" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="material-symbols-outlined text-tertiary text-sm" style={{ fontVariationSettings: 'FILL 1' }}>auto_awesome</span>
+                <p className="text-tertiary text-[10px] font-bold uppercase tracking-widest">Motivación IA</p>
+              </div>
+              <p className="text-white text-sm font-medium leading-relaxed">{motivation}</p>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Filters */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
           className="flex gap-2"
         >
           {(['active', 'completed', 'all'] as const).map((f) => (
@@ -125,10 +132,11 @@ export function VaultsPage() {
           ))}
         </motion.div>
 
+        {/* Vault Cards */}
         <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+          transition={{ delay: 0.15 }}
           className="space-y-3"
         >
           {filteredVaults.length > 0 ? (
@@ -137,7 +145,7 @@ export function VaultsPage() {
                 key={vault.id}
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.15 + index * 0.05 }}
+                transition={{ delay: 0.2 + index * 0.05 }}
                 onClick={() => setSelectedVault(vault)}
                 className="w-full text-left bg-surface-container-low rounded-2xl p-4 border border-outline-variant/10 hover:border-outline-variant/30 transition-colors active:scale-[0.98]"
               >
@@ -186,10 +194,11 @@ export function VaultsPage() {
           )}
         </motion.section>
 
+        {/* Create Button */}
         <motion.button
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.25 }}
           onClick={() => navigate('/create')}
           className="w-full py-4 rounded-2xl bg-primary text-on-primary font-headline font-bold uppercase text-sm active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
         >

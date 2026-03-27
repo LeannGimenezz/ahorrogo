@@ -1,5 +1,16 @@
 # AhorroGO — Backend Documentation
 
+## Navegacion de Documentacion
+
+Este README principal queda como punto de entrada. La documentacion fue separada por dominio:
+
+- [README_INTEGRACIONES.md](README_INTEGRACIONES.md): setup, entorno, frontend, QA e integraciones externas.
+- [README_BLOCKCHAIN.md](README_BLOCKCHAIN.md): autenticacion por firma, webhook y componentes blockchain.
+- [README_ENDPOINTS.md](README_ENDPOINTS.md): inventario de endpoints y comportamiento por modulo.
+- [README_REGLAS_NEGOCIO.md](README_REGLAS_NEGOCIO.md): reglas funcionales de vaults, XP, streak, mood y transfers.
+
+Si prefieres, en un siguiente paso puedo limpiar este archivo y dejarlo solo como indice para evitar duplicidad de contenido.
+
 ## Stack: FastAPI + Supabase + PostgreSQL
 
 **Versión**: 1.0  

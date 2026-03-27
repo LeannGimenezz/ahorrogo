@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ahorrogo-api
+    ports:
+      - "8000:8000"
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_EXPIRATION_DAYS=${JWT_EXPIRATION_DAYS:-7}
+      - RSK_RPC_URL=${RSK_RPC_URL:-https://public-node.rsk.co}
+      - RSK_CHAIN_ID=${RSK_CHAIN_ID:-30}
+      - TROPYKUS_CONTRACT_ADDRESS=${TROPYKUS_CONTRACT_ADDRESS}
+      - VAULT_CONTRACT_ADDRESS=${VAULT_CONTRACT_ADDRESS}
+      - APP_ENV=${APP_ENV:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,https://ahorrogo.app}
+    volumes:
+      - ./app:/app/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Local PostgreSQL for development (if not using Supabase)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: ahorrogo-postgres
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     - POSTGRES_USER=ahorrogo
+  #     - POSTGRES_PASSWORD=ahorrogo_dev
+  #     - POSTGRES_DB=ahorrogo
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+# volumes:
+#   postgres_data:

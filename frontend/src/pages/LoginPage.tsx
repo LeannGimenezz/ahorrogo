@@ -1,15 +1,14 @@
-// Login Page - Beexo wallet authentication
+// Login Page - XOConnect wallet authentication
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthContext } from '../components/auth/AuthProvider';
-import { useAppStore } from '../store/useAppStore';
 import { config } from '../config/env';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { login, isLoading, error } = useAuthContext();
+  const { login, loginDemo, isLoading, error } = useAuthContext();
   const [manualAddress, setManualAddress] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
   
@@ -164,9 +163,9 @@ export function LoginPage() {
       >
         <button
           onClick={() => {
-            // Use mock data for demo
-            useAppStore.getState().initMockData();
-            navigate('/');
+            if (loginDemo) {
+              loginDemo();
+            }
           }}
           className="text-on-surface-variant/40 text-xs hover:text-primary transition-colors"
         >

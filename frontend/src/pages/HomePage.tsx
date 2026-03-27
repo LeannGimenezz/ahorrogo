@@ -27,15 +27,13 @@ const QUICK_ACTIONS = [
 
 export function HomePage() {
   const navigate = useNavigate();
-  const { penguin, initMockData } = useAppStore();
+  const { penguin, vaults } = useAppStore();
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [showVaultDeposit, setShowVaultDeposit] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
   const [greeting, setGreeting] = useState('¡Hola!');
   
   useEffect(() => {
-    initMockData();
-    
     // Hide welcome after 3 seconds
     const timer = setTimeout(() => setShowWelcome(false), 3000);
     return () => clearTimeout(timer);
@@ -49,23 +47,30 @@ export function HomePage() {
     else setGreeting('¡Buenas noches!');
   }, []);
   
-  // Calculate values from store
-  const availableBalance = penguin.totalSaved;
-  const monthlyYieldPercentage = 12.5;
+  // Calculate values from real store data
+  const availableBalance = vaults.reduce((sum, v) => sum + v.current, 0);
+  const monthlyYieldPercentage = penguin.yieldEarned > 0 ? ((penguin.yieldEarned / (availableBalance || 1)) * 100) : 5.2;
   
-  // Main vault (Emergency Fund)
-  const mainVault = {
-    id: 'vault-main',
-    name: 'Emergency Fund',
-    current: 8500,
-    target: 10000,
-    percentage: 85,
+  // Main vault — first active vault or placeholder
+  const firstVault = vaults.find(v => v.status === 'active');
+  const mainVault = firstVault ? {
+    id: firstVault.id,
+    name: firstVault.name,
+    current: firstVault.current,
+    target: firstVault.target,
+    percentage: firstVault.target > 0 ? Math.min(Math.round((firstVault.current / firstVault.target) * 100), 100) : 0,
+  } : {
+    id: '',
+    name: 'Sin vaults activos',
+    current: 0,
+    target: 0,
+    percentage: 0,
   };
   
-  // Stats data
+  // Stats computed from real data
   const stats = {
-    activeAssets: 4120,
-    pendingDeals: 850,
+    activeAssets: availableBalance,
+    pendingDeals: vaults.filter(v => v.vaultType === 'p2p' || v.vaultType === 'rental').reduce((sum, v) => sum + v.current, 0),
   };
 
   const closeModal = () => setActiveModal(null);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAppStore } from './store/useAppStore';
 import { HomePage } from './pages/HomePage';
@@ -7,35 +7,42 @@ import { CreateVaultPage } from './pages/CreateVaultPage';
 import { MovementsPage } from './pages/MovementsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { SendPage } from './pages/SendPage';
+import { LoginPage } from './pages/LoginPage';
 import { Onboarding, isOnboardingCompleted } from './components/penguin/Onboarding';
 
-// Demo mode - Auto-login with mock data
 function App() {
-  const initMockData = useAppStore((state) => state.initMockData);
+  const isAuthenticated = useAppStore((state) => state.isAuthenticated);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isReady, setIsReady] = useState(false);
   
   useEffect(() => {
-    // Initialize with mock data for demo
-    initMockData();
-    // Check if onboarding was completed
     const onboardingDone = isOnboardingCompleted();
     setShowOnboarding(!onboardingDone);
     setIsReady(true);
-  }, [initMockData]);
+  }, []);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
   };
   
   if (!isReady) {
-    return null; // Or a loading spinner
+    return null;
+  }
+  
+  // If not authenticated, show login
+  if (!isAuthenticated) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="*" element={<LoginPage />} />
+        </Routes>
+      </BrowserRouter>
+    );
   }
   
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-background">
-        {/* Show onboarding for first-time users */}
         {showOnboarding && <Onboarding onComplete={handleOnboardingComplete} />}
         
         <Routes>
